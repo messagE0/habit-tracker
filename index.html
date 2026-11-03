@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Трекер привычек</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --card: #181b22;
+    --border: #262a33;
+    --text: #e8eaef;
+    --muted: #8b90a0;
+    --accent: #7c5cff;
+    --done: #22c55e;
+    --danger: #ef4444;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    padding: 40px 16px;
+  }
+  .app { width: 100%; max-width: 680px; }
+  h1 { margin: 0 0 4px; font-size: 28px; }
+  .subtitle { color: var(--muted); margin: 0 0 24px; }
+
+  .add-form { display: flex; gap: 8px; margin-bottom: 24px; }
+  .add-form input {
+    flex: 1;
+    padding: 12px 14px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--card);
+    color: var(--text);
+    font-size: 16px;
+    outline: none;
+  }
+  .add-form input:focus { border-color: var(--accent); }
+  button {
+    cursor: pointer;
+    border: none;
+    border-radius: 10px;
+    font-size: 16px;
+  }
+  .add-form button {
+    padding: 12px 18px;
+    background: var(--accent);
+    color: white;
+    font-weight: 600;
+  }
+  .add-form button:hover { filter: brightness(1.1); }
+
+  .days-header, .habit {
+    display: grid;
+    grid-template-columns: 1fr repeat(7, 36px) 56px 32px;
+    gap: 6px;
+    align-items: center;
+  }
+  .days-header {
+    color: var(--muted);
+    font-size: 12px;
+    text-align: center;
+    padding: 0 12px 8px;
+  }
+  .days-header .today { color: var(--accent); font-weight: 700; }
+
+  .habit {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 12px;
+    margin-bottom: 8px;
+  }
+  .habit-name {
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .day {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: transparent;
+    font-size: 18px;
+    transition: transform 0.1s;
+  }
+  .day:hover { transform: scale(1.08); }
+  .day.done { background: var(--done); border-color: var(--done); color: white; }
+  .streak { text-align: center; font-size: 14px; color: var(--muted); }
+  .streak.hot { color: #f59e0b; font-weight: 700; }
+  .delete {
+    background: transparent;
+    color: var(--muted);
+    font-size: 18px;
+    width: 32px;
+    height: 32px;
+  }
+  .delete:hover { color: var(--danger); }
+
+  .empty {
+    text-align: center;
+    color: var(--muted);
+    padding: 40px 0;
+  }
+  footer { margin-top: 32px; text-align: center; color: var(--muted); font-size: 13px; }
+
+  @media (max-width: 520px) {
+    .days-header, .habit { grid-template-columns: 1fr repeat(7, 28px) 40px 28px; gap: 4px; }
+    .day { width: 28px; height: 28px; font-size: 14px; }
+    .habit { padding: 10px; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>Трекер привычек</h1>
+  <p class="subtitle">Отмечай каждый день и не ломай серию 🔥</p>
+
+  <form class="add-form" id="addForm">
+    <input id="habitInput" type="text" placeholder="Например: читать 20 минут" maxlength="40" autocomplete="off">
+    <button type="submit">Добавить</button>
+  </form>
+
+  <div class="days-header" id="daysHeader"></div>
+  <div id="habitList"></div>
+
+  <footer>Данные хранятся в твоём браузере</footer>
+</div>
+
+<script>
+  // ---------- Хранилище ----------
+  const STORAGE_KEY = "habits-v1";
+
+  function loadHabits() {
+    try {
+      return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function saveHabits() {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(habits));
+    } catch (e) { /* хранилище недоступно, просто пропускаем */ }
+  }
+
+  let habits = loadHabits();
+
+  // ---------- Даты ----------
+  // Превращаем дату в строку вида 2026-11-03
+  function dateKey(date) {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, "0");
+    const d = String(date.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  }
+
+  // Последние 7 дней, сегодня последним
+  function lastSevenDays() {
+    const days = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      days.push(d);
+    }
+    return days;
+  }
+
+  const WEEKDAYS = ["Вс", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"];
+
+  // Серия: сколько дней подряд привычка выполнена
+  function getStreak(habit) {
+    let streak = 0;
+    const d = new Date();
+    // если сегодня ещё не отмечено, считаем от вчера
+    if (!habit.days[dateKey(d)]) d.setDate(d.getDate() - 1);
+    while (habit.days[dateKey(d)]) {
+      streak++;
+      d.setDate(d.getDate() - 1);
+    }
+    return streak;
+  }
+
+  // ---------- Отрисовка ----------
+  function render() {
+    const days = lastSevenDays();
+    const todayKey = dateKey(new Date());
+
+    // Заголовок с днями недели
+    const header = document.getElementById("daysHeader");
+    header.innerHTML = "<span></span>" +
+      days.map(d => `<span class="${dateKey(d) === todayKey ? "today" : ""}">${WEEKDAYS[d.getDay()]}<br>${d.getDate()}</span>`).join("") +
+      "<span>🔥</span><span></span>";
+    header.style.display = habits.length ? "grid" : "none";
+
+    // Список привычек
+    const list = document.getElementById("habitList");
+    if (habits.length === 0) {
+      list.innerHTML = `<div class="empty">Пока нет привычек. Добавь первую ☝️</div>`;
+      return;
+    }
+
+    list.innerHTML = "";
+    habits.forEach(habit => {
+      const row = document.createElement("div");
+      row.className = "habit";
+
+      const name = document.createElement("div");
+      name.className = "habit-name";
+      name.textContent = habit.name;
+      name.title = habit.name;
+      row.appendChild(name);
+
+      days.forEach(d => {
+        const key = dateKey(d);
+        const btn = document.createElement("button");
+        btn.className = "day" + (habit.days[key] ? " done" : "");
+        btn.textContent = "✓";
+        btn.title = key;
+        btn.onclick = () => {
+          if (habit.days[key]) delete habit.days[key];
+          else habit.days[key] = true;
+          saveHabits();
+          render();
+        };
+        row.appendChild(btn);
+      });
+
+      const streak = getStreak(habit);
+      const streakEl = document.createElement("div");
+      streakEl.className = "streak" + (streak >= 3 ? " hot" : "");
+      streakEl.textContent = streak;
+      row.appendChild(streakEl);
+
+      const del = document.createElement("button");
+      del.className = "delete";
+      del.textContent = "✕";
+      del.title = "Удалить";
+      del.onclick = () => {
+        if (confirm(`Удалить привычку «${habit.name}»?`)) {
+          habits = habits.filter(h => h.id !== habit.id);
+          saveHabits();
+          render();
+        }
+      };
+      row.appendChild(del);
+
+      list.appendChild(row);
+    });
+  }
+
+  // ---------- Добавление ----------
+  document.getElementById("addForm").addEventListener("submit", e => {
+    e.preventDefault();
+    const input = document.getElementById("habitInput");
+    const name = input.value.trim();
+    if (!name) return;
+    habits.push({ id: Date.now(), name, days: {} });
+    input.value = "";
+    saveHabits();
+    render();
+  });
+
+  render();
+</script>
+</body>
+</html>
