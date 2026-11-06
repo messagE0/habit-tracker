@@ -163,6 +163,17 @@
   .cal-day.blank { background: transparent; border: none; }
   .cal-summary { margin-top: 12px; font-size: 14px; color: var(--muted); text-align: center; }
   .cal-summary b { color: var(--text); }
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border);
+  }
+  .stat { background: var(--bg); border-radius: 10px; padding: 10px 4px; text-align: center; }
+  .stat-value { font-size: 20px; font-weight: 700; }
+  .stat-label { font-size: 12px; color: var(--muted); margin-top: 2px; }
 
   footer { margin-top: 32px; text-align: center; color: var(--muted); font-size: 13px; }
 
@@ -242,6 +253,23 @@
       d.setDate(d.getDate() - 1);
     }
     return streak;
+  }
+
+  // Статистика за всё время: со дня создания по сегодня.
+  // Неотмеченное сегодня не считаем пропуском — день ещё не закончился.
+  function getStats(habit) {
+    const todayKey = dateKey(new Date());
+    const d = new Date(habit.id);
+    let done = 0, total = 0, best = 0, run = 0;
+    for (let key = dateKey(d); key <= todayKey; d.setDate(d.getDate() + 1), key = dateKey(d)) {
+      if (habit.days[key]) {
+        done++; total++; run++;
+        best = Math.max(best, run);
+      } else if (key !== todayKey) {
+        total++; run = 0;
+      }
+    }
+    return { done, best, pct: total ? Math.round(done / total * 100) : 0 };
   }
 
   // ---------- Отрисовка ----------
@@ -434,7 +462,7 @@
         el.title = key + " — пропущено";
       }
 
-      if (key >= createdKey && key <= todayKey) {
+      if (key >= createdKey && key <= todayKey && (done || key !== todayKey)) {
         countable++;
         if (done) doneCount++;
       }
@@ -447,6 +475,22 @@
     const pct = countable ? Math.round(doneCount / countable * 100) : 0;
     summary.innerHTML = `Выполнено <b>${doneCount}</b> из <b>${countable}</b> дней · <b>${pct}%</b>`;
     wrap.appendChild(summary);
+
+    const stats = getStats(habit);
+    const statsEl = document.createElement("div");
+    statsEl.className = "stats";
+    [
+      [getStreak(habit), "Серия 🔥"],
+      [stats.best, "Рекорд"],
+      [stats.done, "Всего дней"],
+      [stats.pct + "%", "За всё время"],
+    ].forEach(([value, label]) => {
+      const el = document.createElement("div");
+      el.className = "stat";
+      el.innerHTML = `<div class="stat-value">${value}</div><div class="stat-label">${label}</div>`;
+      statsEl.appendChild(el);
+    });
+    wrap.appendChild(statsEl);
 
     return wrap;
   }
