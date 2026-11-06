@@ -223,7 +223,7 @@
   <div id="habitList"></div>
 
   <div class="add-form" style="margin-top:24px">
-    <input id="remTime" type="time" value="20:00" title="Во сколько напоминать">
+    <select id="remTime" title="Во сколько напоминать"><option value="0800">08:00</option><option value="1200">12:00</option><option value="1800">18:00</option><option value="2000" selected>20:00</option><option value="2100">21:00</option><option value="2200">22:00</option></select>
     <button type="button" id="remBtn">⏰ Напоминание в календарь</button>
   </div>
 
@@ -366,26 +366,10 @@
   }
 
   // ---------- Отрисовка ----------
-  // Напоминание: .ics с ежедневным повтором и будильником; время "плавающее" (по часам телефона).
-  // shortcut: не знает, что уже отмечено, одно общее напоминание на все привычки.
+  // Напоминание: готовые .ics на сайте (iOS Safari сам предлагает добавить в Календарь).
+  // shortcut: время только из списка, одно общее напоминание, не знает что уже отмечено.
   document.getElementById('remBtn').onclick = function () {
-    var t = (document.getElementById('remTime').value || '20:00').replace(':', '');
-    var d = new Date(), p = function (n) { return String(n).padStart(2, '0'); };
-    var day = d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate());
-    var ics = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//habit-tracker//RU', 'BEGIN:VEVENT',
-      'UID:habit-reminder@habit-tracker', 'DTSTAMP:' + day + 'T000000Z',
-      'DTSTART:' + day + 'T' + t + '00', 'DURATION:PT10M', 'RRULE:FREQ=DAILY',
-      'SUMMARY:Отметь привычки', 'BEGIN:VALARM', 'ACTION:DISPLAY',
-      'DESCRIPTION:Отметь привычки', 'TRIGGER:PT0S', 'END:VALARM', 'END:VEVENT', 'END:VCALENDAR'].join('\r\n');
-    // iOS Safari не скачивает blob: открываем data:-ссылку, Safari сам предложит добавить событие в календарь
-    if (/iP(hone|ad|od)/.test(navigator.userAgent)) {
-      location.href = 'data:text/calendar;charset=utf-8,' + encodeURIComponent(ics);
-      return;
-    }
-    var a = document.createElement('a');
-    a.href = URL.createObjectURL(new Blob([ics], { type: 'text/calendar' }));
-    a.download = 'habit-reminder.ics';
-    a.click();
+    location.href = 'reminder-' + document.getElementById('remTime').value + '.ics';
   };
 
   function render() {
