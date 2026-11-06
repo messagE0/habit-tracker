@@ -222,6 +222,11 @@
   <div class="days-header" id="daysHeader"></div>
   <div id="habitList"></div>
 
+  <div class="add-form" style="margin-top:24px">
+    <input id="remTime" type="time" value="20:00" title="Во сколько напоминать">
+    <button type="button" id="remBtn">⏰ Напоминание в календарь</button>
+  </div>
+
   <footer>Данные хранятся в твоём браузере</footer>
 </div>
 
@@ -361,6 +366,23 @@
   }
 
   // ---------- Отрисовка ----------
+  // Напоминание: .ics с ежедневным повтором и будильником; время "плавающее" (по часам телефона).
+  // shortcut: не знает, что уже отмечено, одно общее напоминание на все привычки.
+  document.getElementById('remBtn').onclick = function () {
+    var t = (document.getElementById('remTime').value || '20:00').replace(':', '');
+    var d = new Date(), p = function (n) { return String(n).padStart(2, '0'); };
+    var day = d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate());
+    var ics = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//habit-tracker//RU', 'BEGIN:VEVENT',
+      'UID:habit-reminder@habit-tracker', 'DTSTAMP:' + day + 'T000000Z',
+      'DTSTART:' + day + 'T' + t + '00', 'DURATION:PT10M', 'RRULE:FREQ=DAILY',
+      'SUMMARY:Отметь привычки', 'BEGIN:VALARM', 'ACTION:DISPLAY',
+      'DESCRIPTION:Отметь привычки', 'TRIGGER:PT0S', 'END:VALARM', 'END:VEVENT', 'END:VCALENDAR'].join('\r\n');
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([ics], { type: 'text/calendar' }));
+    a.download = 'habit-reminder.ics';
+    a.click();
+  };
+
   function render() {
     const days = lastSevenDays();
     const todayKey = dateKey(new Date());
