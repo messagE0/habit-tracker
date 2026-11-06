@@ -377,6 +377,11 @@
       'DTSTART:' + day + 'T' + t + '00', 'DURATION:PT10M', 'RRULE:FREQ=DAILY',
       'SUMMARY:Отметь привычки', 'BEGIN:VALARM', 'ACTION:DISPLAY',
       'DESCRIPTION:Отметь привычки', 'TRIGGER:PT0S', 'END:VALARM', 'END:VEVENT', 'END:VCALENDAR'].join('\r\n');
+    // iOS Safari не скачивает blob: открываем data:-ссылку, Safari сам предложит добавить событие в календарь
+    if (/iP(hone|ad|od)/.test(navigator.userAgent)) {
+      location.href = 'data:text/calendar;charset=utf-8,' + encodeURIComponent(ics);
+      return;
+    }
     var a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([ics], { type: 'text/calendar' }));
     a.download = 'habit-reminder.ics';
