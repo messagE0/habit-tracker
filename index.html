@@ -117,6 +117,7 @@
   .day.today:not(.done) { border-color: var(--accent); }
   .streak { text-align: center; font-size: 14px; color: var(--muted); }
   .streak.hot { color: #f59e0b; font-weight: 700; }
+  .streak.weekly { color: var(--done); font-weight: 700; } /* серия в неделях */
   .delete {
     background: transparent;
     color: var(--muted);
@@ -441,7 +442,7 @@
 
       const streak = getStreak(habit);
       const streakEl = document.createElement("div");
-      streakEl.className = "streak" + (streak >= 3 ? " hot" : "");
+      streakEl.className = "streak" + (isWeekly(habit) ? " weekly" : streak >= 3 ? " hot" : "");
       streakEl.textContent = streak;
       row.appendChild(streakEl);
 
