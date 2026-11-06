@@ -121,6 +121,49 @@
     color: var(--muted);
     padding: 40px 0;
   }
+  .habit-name { cursor: pointer; }
+  .habit-name:hover { color: var(--accent); }
+  .habit-name::before { content: "▸ "; color: var(--muted); }
+  .habit.open .habit-name::before { content: "▾ "; }
+  .habit.open { border-bottom-left-radius: 0; border-bottom-right-radius: 0; margin-bottom: 0; }
+
+  .calendar {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-top: none;
+    border-radius: 0 0 12px 12px;
+    padding: 12px 16px 16px;
+    margin-bottom: 8px;
+  }
+  .cal-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .cal-nav button {
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+    width: 32px; height: 32px;
+  }
+  .cal-nav button:disabled { opacity: 0.3; cursor: default; }
+  .cal-title { font-weight: 600; }
+  .cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
+  .cal-wd { text-align: center; font-size: 12px; color: var(--muted); }
+  .cal-day {
+    height: 40px;
+    border-radius: 8px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 14px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .cal-day.done { background: var(--done); border-color: var(--done); color: white; font-weight: 600; }
+  .cal-day.missed { background: rgba(239, 68, 68, 0.12); border-color: rgba(239, 68, 68, 0.35); color: var(--danger); }
+  .cal-day.locked { opacity: 0.35; }
+  .cal-day.today { border-color: var(--accent); color: var(--text); cursor: pointer; }
+  .cal-day.today.done { border-color: var(--done); }
+  .cal-day.blank { background: transparent; border: none; }
+  .cal-summary { margin-top: 12px; font-size: 14px; color: var(--muted); text-align: center; }
+  .cal-summary b { color: var(--text); }
+
   footer { margin-top: 32px; text-align: center; color: var(--muted); font-size: 13px; }
 
   @media (max-width: 520px) {
@@ -225,10 +268,23 @@
       const row = document.createElement("div");
       row.className = "habit";
 
+      const isOpen = openHabitId === habit.id;
+      if (isOpen) row.classList.add("open");
+
       const name = document.createElement("div");
       name.className = "habit-name";
       name.textContent = habit.name;
-      name.title = habit.name;
+      name.title = "Открыть календарь";
+      name.onclick = () => {
+        if (isOpen) {
+          openHabitId = null;
+        } else {
+          openHabitId = habit.id;
+          const now = new Date();
+          calMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+        }
+        render();
+      };
       row.appendChild(name);
 
       const createdKey = dateKey(new Date(habit.id));
@@ -286,7 +342,113 @@
       row.appendChild(del);
 
       list.appendChild(row);
+      if (isOpen) list.appendChild(renderCalendar(habit));
     });
+  }
+
+  // ---------- Календарь ----------
+  const MONTHS = ["Январь", "Февраль", "Март", "Апрель", "Май", "Июнь",
+    "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"];
+  let openHabitId = null;
+  let calMonth = null; // первое число показываемого месяца
+
+  function toggleToday(habit) {
+    const key = dateKey(new Date());
+    if (habit.days[key]) delete habit.days[key];
+    else habit.days[key] = true;
+    saveHabits();
+    render();
+  }
+
+  function renderCalendar(habit) {
+    const todayKey = dateKey(new Date());
+    const created = new Date(habit.id);
+    const createdKey = dateKey(created);
+    const year = calMonth.getFullYear();
+    const month = calMonth.getMonth();
+    const now = new Date();
+
+    const wrap = document.createElement("div");
+    wrap.className = "calendar";
+
+    // Навигация по месяцам: не раньше месяца создания и не позже текущего
+    const canPrev = year > created.getFullYear() ||
+      (year === created.getFullYear() && month > created.getMonth());
+    const canNext = year < now.getFullYear() ||
+      (year === now.getFullYear() && month < now.getMonth());
+
+    const nav = document.createElement("div");
+    nav.className = "cal-nav";
+    const prev = document.createElement("button");
+    prev.textContent = "‹";
+    prev.title = "Предыдущий месяц";
+    prev.disabled = !canPrev;
+    prev.onclick = () => { calMonth = new Date(year, month - 1, 1); render(); };
+    const title = document.createElement("div");
+    title.className = "cal-title";
+    title.textContent = `${MONTHS[month]} ${year}`;
+    const next = document.createElement("button");
+    next.textContent = "›";
+    next.title = "Следующий месяц";
+    next.disabled = !canNext;
+    next.onclick = () => { calMonth = new Date(year, month + 1, 1); render(); };
+    nav.append(prev, title, next);
+    wrap.appendChild(nav);
+
+    const grid = document.createElement("div");
+    grid.className = "cal-grid";
+    ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"].forEach(w => {
+      const el = document.createElement("div");
+      el.className = "cal-wd";
+      el.textContent = w;
+      grid.appendChild(el);
+    });
+
+    // Пустые клетки до первого числа (неделя начинается с понедельника)
+    const offset = (new Date(year, month, 1).getDay() + 6) % 7;
+    for (let i = 0; i < offset; i++) {
+      const el = document.createElement("div");
+      el.className = "cal-day blank";
+      grid.appendChild(el);
+    }
+
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    let doneCount = 0, countable = 0;
+    for (let day = 1; day <= daysInMonth; day++) {
+      const key = dateKey(new Date(year, month, day));
+      const done = !!habit.days[key];
+      const el = document.createElement("div");
+      el.className = "cal-day";
+      el.textContent = day;
+      el.title = key;
+
+      if (done) el.classList.add("done");
+      if (key === todayKey) {
+        el.classList.add("today");
+        el.title = "Сегодня — нажми, чтобы отметить";
+        el.onclick = () => toggleToday(habit);
+      } else if (key > todayKey || key < createdKey) {
+        if (!done) el.classList.add("locked");
+      } else if (!done) {
+        el.classList.add("missed");
+        el.title = key + " — пропущено";
+      }
+
+      if (key >= createdKey && key <= todayKey) {
+        countable++;
+        if (done) doneCount++;
+      }
+      grid.appendChild(el);
+    }
+    wrap.appendChild(grid);
+
+    const summary = document.createElement("div");
+    summary.className = "cal-summary";
+    const pct = countable ? Math.round(doneCount / countable * 100) : 0;
+    summary.innerHTML = `Выполнено <b>${doneCount}</b> из <b>${countable}</b> дней · <b>${pct}%</b>`;
+    wrap.appendChild(summary);
+
+    return wrap;
   }
 
   // ---------- Добавление ----------
