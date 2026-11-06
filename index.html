@@ -95,6 +95,16 @@
   }
   .day:hover { transform: scale(1.08); }
   .day.done { background: var(--done); border-color: var(--done); color: white; }
+  .day.missed {
+    background: rgba(239, 68, 68, 0.12);
+    border-color: rgba(239, 68, 68, 0.35);
+    color: var(--danger);
+    font-size: 14px;
+  }
+  .day:disabled { cursor: default; }
+  .day:disabled:hover { transform: none; }
+  .day.locked { opacity: 0.35; }
+  .day.today:not(.done) { border-color: var(--accent); }
   .streak { text-align: center; font-size: 14px; color: var(--muted); }
   .streak.hot { color: #f59e0b; font-weight: 700; }
   .delete {
@@ -221,12 +231,32 @@
       name.title = habit.name;
       row.appendChild(name);
 
+      const createdKey = dateKey(new Date(habit.id));
+
       days.forEach(d => {
         const key = dateKey(d);
+        const done = !!habit.days[key];
+        const isToday = key === todayKey;
         const btn = document.createElement("button");
-        btn.className = "day" + (habit.days[key] ? " done" : "");
+        btn.className = "day" + (done ? " done" : "") + (isToday ? " today" : "");
         btn.textContent = "✓";
         btn.title = key;
+
+        // Отмечать можно только сегодняшний день — прошлое уже не изменить
+        if (!isToday) {
+          btn.disabled = true;
+          if (!done && key >= createdKey) {
+            btn.classList.add("missed");
+            btn.textContent = "✕";
+            btn.title = key + " — пропущено";
+          } else if (!done) {
+            btn.classList.add("locked");
+            btn.title = key + " — привычки ещё не было";
+          }
+          row.appendChild(btn);
+          return;
+        }
+
         btn.onclick = () => {
           if (habit.days[key]) delete habit.days[key];
           else habit.days[key] = true;
