@@ -223,7 +223,7 @@
   <div id="habitList"></div>
 
   <div class="add-form" style="margin-top:24px">
-    <select id="remTime" title="Во сколько напоминать"><option value="0800">08:00</option><option value="1200">12:00</option><option value="1800">18:00</option><option value="2000" selected>20:00</option><option value="2100">21:00</option><option value="2200">22:00</option></select>
+    <input id="remTime" type="time" value="20:00" title="Во сколько напоминать">
     <button type="button" id="remBtn">⏰ Напоминание в календарь</button>
   </div>
 
@@ -367,9 +367,9 @@
 
   // ---------- Отрисовка ----------
   // Напоминание: готовые .ics на сайте (iOS Safari сам предлагает добавить в Календарь).
-  // shortcut: время только из списка, одно общее напоминание, не знает что уже отмечено.
+  // shortcut: файлы на каждую минуту лежат в reminders/, одно общее напоминание, не знает что уже отмечено.
   document.getElementById('remBtn').onclick = function () {
-    location.href = 'reminder-' + document.getElementById('remTime').value + '.ics';
+    location.href = 'reminders/' + (document.getElementById('remTime').value || '20:00').replace(':', '') + '.ics';
   };
 
   function render() {
