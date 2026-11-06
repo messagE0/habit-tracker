@@ -30,7 +30,8 @@
   h1 { margin: 0 0 4px; font-size: 28px; }
   .subtitle { color: var(--muted); margin: 0 0 24px; }
 
-  .add-form { display: flex; gap: 8px; margin-bottom: 24px; }
+  .add-form { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 24px; }
+  .add-form input { min-width: 160px; }
   .add-form input {
     flex: 1;
     padding: 12px 14px;
@@ -42,6 +43,15 @@
     outline: none;
   }
   .add-form input:focus { border-color: var(--accent); }
+  .add-form select {
+    padding: 12px 10px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--card);
+    color: var(--text);
+    font-size: 15px;
+  }
+  .sched { color: var(--muted); font-weight: 400; }
   button {
     cursor: pointer;
     border: none;
@@ -191,6 +201,16 @@
 
   <form class="add-form" id="addForm">
     <input id="habitInput" type="text" placeholder="Например: читать 20 минут" maxlength="40" autocomplete="off">
+    <select id="scheduleInput" title="Как часто делать привычку">
+      <option value="daily">Каждый день</option>
+      <option value="weekdays">По будням</option>
+      <option value="w1">1 раз в неделю</option>
+      <option value="w2">2 раза в неделю</option>
+      <option value="w3">3 раза в неделю</option>
+      <option value="w4">4 раза в неделю</option>
+      <option value="w5">5 раз в неделю</option>
+      <option value="w6">6 раз в неделю</option>
+    </select>
     <button type="submit">Добавить</button>
   </form>
 
@@ -242,15 +262,70 @@
 
   const WEEKDAYS = ["Вс", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"];
 
-  // Серия: сколько дней подряд привычка выполнена
+  // ---------- Расписание ----------
+  // habit.schedule: {type:"daily"} | {type:"weekdays"} | {type:"weekly", n}
+  // У старых привычек расписания нет — считаем «каждый день».
+  function getSchedule(habit) { return habit.schedule || { type: "daily" }; }
+  function isWeekly(habit) { return getSchedule(habit).type === "weekly"; }
+
+  // Обязателен ли этот день. В режиме «N раз в неделю» обязательных дней нет.
+  function isScheduled(habit, d) {
+    const type = getSchedule(habit).type;
+    if (type === "weekdays") return d.getDay() !== 0 && d.getDay() !== 6;
+    return type === "daily";
+  }
+
+  function scheduleLabel(habit) {
+    const s = getSchedule(habit);
+    if (s.type === "weekdays") return "по будням";
+    if (s.type === "weekly") return `${s.n}× в неделю`;
+    return "";
+  }
+
+  // Понедельник той недели, в которой лежит дата
+  function weekStart(date) {
+    const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    d.setDate(d.getDate() - (d.getDay() + 6) % 7);
+    return d;
+  }
+
+  // Итог каждой недели (пн–вс) от недели создания до текущей: "ok" | "fail" | "skip".
+  // "skip" — неделя ещё идёт или привычка создана посреди неё: штрафа нет.
+  function weekResults(habit) {
+    const n = getSchedule(habit).n;
+    const created = weekStart(new Date(habit.id)).getTime();
+    const cur = weekStart(new Date()).getTime();
+    const res = [];
+    for (const w = new Date(created); w.getTime() <= cur; w.setDate(w.getDate() + 7)) {
+      let count = 0;
+      for (let i = 0; i < 7; i++) {
+        const d = new Date(w);
+        d.setDate(w.getDate() + i);
+        if (habit.days[dateKey(d)]) count++;
+      }
+      const t = w.getTime();
+      res.push(count >= n ? "ok" : (t === created || t === cur) ? "skip" : "fail");
+    }
+    return res;
+  }
+
+  // Серия: сколько дней подряд привычка выполнена (для «N раз в неделю» — недель)
   function getStreak(habit) {
+    if (isWeekly(habit)) {
+      const w = weekResults(habit);
+      if (w[w.length - 1] === "skip") w.pop();
+      let streak = 0;
+      while (w.length && w.pop() === "ok") streak++;
+      return streak;
+    }
+    const createdKey = dateKey(new Date(habit.id));
     let streak = 0;
     const d = new Date();
     // если сегодня ещё не отмечено, считаем от вчера
     if (!habit.days[dateKey(d)]) d.setDate(d.getDate() - 1);
-    while (habit.days[dateKey(d)]) {
-      streak++;
-      d.setDate(d.getDate() - 1);
+    for (; dateKey(d) >= createdKey; d.setDate(d.getDate() - 1)) {
+      if (habit.days[dateKey(d)]) streak++;
+      else if (isScheduled(habit, d)) break; // необязательные дни (выходные) серию не рвут
     }
     return streak;
   }
@@ -258,6 +333,14 @@
   // Статистика за всё время: со дня создания по сегодня.
   // Неотмеченное сегодня не считаем пропуском — день ещё не закончился.
   function getStats(habit) {
+    if (isWeekly(habit)) {
+      let best = 0, run = 0, ok = 0, fail = 0;
+      weekResults(habit).forEach(r => {
+        if (r === "ok") { ok++; run++; best = Math.max(best, run); }
+        else if (r === "fail") { fail++; run = 0; }
+      });
+      return { done: Object.keys(habit.days).length, best, pct: ok + fail ? Math.round(ok / (ok + fail) * 100) : 0 };
+    }
     const todayKey = dateKey(new Date());
     const d = new Date(habit.id);
     let done = 0, total = 0, best = 0, run = 0;
@@ -265,7 +348,7 @@
       if (habit.days[key]) {
         done++; total++; run++;
         best = Math.max(best, run);
-      } else if (key !== todayKey) {
+      } else if (key !== todayKey && isScheduled(habit, d)) {
         total++; run = 0;
       }
     }
@@ -302,6 +385,12 @@
       const name = document.createElement("div");
       name.className = "habit-name";
       name.textContent = habit.name;
+      if (scheduleLabel(habit)) {
+        const tag = document.createElement("small");
+        tag.className = "sched";
+        tag.textContent = " · " + scheduleLabel(habit);
+        name.appendChild(tag);
+      }
       name.title = "Открыть календарь";
       name.onclick = () => {
         if (isOpen) {
@@ -329,13 +418,13 @@
         // Отмечать можно только сегодняшний день — прошлое уже не изменить
         if (!isToday) {
           btn.disabled = true;
-          if (!done && key >= createdKey) {
+          if (!done && key >= createdKey && isScheduled(habit, d)) {
             btn.classList.add("missed");
             btn.textContent = "✕";
             btn.title = key + " — пропущено";
           } else if (!done) {
             btn.classList.add("locked");
-            btn.title = key + " — привычки ещё не было";
+            btn.title = key < createdKey ? key + " — привычки ещё не было" : key + " — необязательный день";
           }
           row.appendChild(btn);
           return;
@@ -443,7 +532,8 @@
     const daysInMonth = new Date(year, month + 1, 0).getDate();
     let doneCount = 0, countable = 0;
     for (let day = 1; day <= daysInMonth; day++) {
-      const key = dateKey(new Date(year, month, day));
+      const date = new Date(year, month, day);
+      const key = dateKey(date);
       const done = !!habit.days[key];
       const el = document.createElement("div");
       el.className = "cal-day";
@@ -458,11 +548,16 @@
       } else if (key > todayKey || key < createdKey) {
         if (!done) el.classList.add("locked");
       } else if (!done) {
-        el.classList.add("missed");
-        el.title = key + " — пропущено";
+        if (isScheduled(habit, date)) {
+          el.classList.add("missed");
+          el.title = key + " — пропущено";
+        } else {
+          el.classList.add("locked");
+          el.title = key + " — необязательный день";
+        }
       }
 
-      if (key >= createdKey && key <= todayKey && (done || key !== todayKey)) {
+      if (key >= createdKey && key <= todayKey && (done || (key !== todayKey && isScheduled(habit, date)))) {
         countable++;
         if (done) doneCount++;
       }
@@ -473,15 +568,18 @@
     const summary = document.createElement("div");
     summary.className = "cal-summary";
     const pct = countable ? Math.round(doneCount / countable * 100) : 0;
-    summary.innerHTML = `Выполнено <b>${doneCount}</b> из <b>${countable}</b> дней · <b>${pct}%</b>`;
+    summary.innerHTML = isWeekly(habit)
+      ? `Выполнено <b>${doneCount}</b> дн. за месяц · цель <b>${getSchedule(habit).n}</b> в неделю`
+      : `Выполнено <b>${doneCount}</b> из <b>${countable}</b> дней · <b>${pct}%</b>`;
     wrap.appendChild(summary);
 
     const stats = getStats(habit);
+    const unit = isWeekly(habit) ? ", нед." : "";
     const statsEl = document.createElement("div");
     statsEl.className = "stats";
     [
-      [getStreak(habit), "Серия 🔥"],
-      [stats.best, "Рекорд"],
+      [getStreak(habit), "Серия 🔥" + unit],
+      [stats.best, "Рекорд" + unit],
       [stats.done, "Всего дней"],
       [stats.pct + "%", "За всё время"],
     ].forEach(([value, label]) => {
@@ -501,7 +599,9 @@
     const input = document.getElementById("habitInput");
     const name = input.value.trim();
     if (!name) return;
-    habits.push({ id: Date.now(), name, days: {} });
+    const v = document.getElementById("scheduleInput").value; // "daily" | "weekdays" | "w3"
+    const schedule = v[0] === "w" ? { type: "weekly", n: +v.slice(1) } : { type: v };
+    habits.push({ id: Date.now(), name, days: {}, schedule });
     input.value = "";
     saveHabits();
     render();
