@@ -227,6 +227,12 @@
     <button type="button" id="remBtn">⏰ Напоминание в календарь</button>
   </div>
 
+  <div class="add-form" style="margin-top:12px">
+    <button type="button" id="exportBtn">💾 Скачать копию данных</button>
+    <button type="button" id="importBtn">📂 Загрузить копию</button>
+    <input type="file" id="importFile" accept=".json,application/json" hidden>
+  </div>
+
   <footer>Данные хранятся в твоём браузере</footer>
 </div>
 
@@ -622,6 +628,35 @@
     saveHabits();
     render();
   });
+
+  // ---------- Резервная копия ----------
+  document.getElementById("exportBtn").onclick = () => {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([JSON.stringify(habits, null, 2)], { type: "application/json" }));
+    a.download = `habits-${dateKey(new Date())}.json`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  };
+
+  document.getElementById("importBtn").onclick = () => document.getElementById("importFile").click();
+
+  document.getElementById("importFile").onchange = async e => {
+    const file = e.target.files[0];
+    e.target.value = "";
+    if (!file) return;
+    try {
+      const data = JSON.parse(await file.text());
+      const ok = Array.isArray(data) && data.every(h =>
+        h && typeof h.name === "string" && Number.isFinite(h.id) && h.days && typeof h.days === "object");
+      if (!ok) throw new Error("bad format");
+      if (!confirm(`Заменить текущие привычки (${habits.length}) на привычки из файла (${data.length})?`)) return;
+      habits = data;
+      saveHabits();
+      render();
+    } catch (err) {
+      alert("Не получилось прочитать файл. Нужен файл, скачанный из этого приложения.");
+    }
+  };
 
   render();
 
