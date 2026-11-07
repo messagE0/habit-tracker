@@ -624,6 +624,31 @@
     });
     wrap.appendChild(statsEl);
 
+    // Правка привычки: название и расписание
+    const edit = document.createElement("form");
+    edit.className = "add-form";
+    edit.style.marginTop = "14px";
+    const nameIn = document.createElement("input");
+    nameIn.value = habit.name;
+    nameIn.maxLength = 40;
+    const schedIn = document.getElementById("scheduleInput").cloneNode(true);
+    const s = getSchedule(habit);
+    schedIn.value = s.type === "weekly" ? "w" + s.n : s.type;
+    const save = document.createElement("button");
+    save.textContent = "Сохранить";
+    edit.append(nameIn, schedIn, save);
+    edit.onsubmit = e => {
+      e.preventDefault();
+      const name = nameIn.value.trim();
+      if (!name) return;
+      const v = schedIn.value;
+      habit.name = name;
+      habit.schedule = v[0] === "w" ? { type: "weekly", n: +v.slice(1) } : { type: v };
+      saveHabits();
+      render();
+    };
+    wrap.appendChild(edit);
+
     return wrap;
   }
 
