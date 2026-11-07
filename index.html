@@ -281,7 +281,13 @@
   // ---------- Расписание ----------
   // habit.schedule: {type:"daily"} | {type:"weekdays"} | {type:"weekly", n}
   // У старых привычек расписания нет — считаем «каждый день».
-  function getSchedule(habit) { return habit.schedule || { type: "daily" }; }
+  // weekly без числа — следы старой ошибки, когда «по будням» сохранялось как weekly с NaN.
+  function getSchedule(habit) {
+    const s = habit.schedule || { type: "daily" };
+    return s.type === "weekly" && !s.n ? { type: "weekdays" } : s;
+  }
+  // "w3" -> 3 раза в неделю; "daily" / "weekdays" остаются как есть
+  function parseSchedule(v) { return /^w\d$/.test(v) ? { type: "weekly", n: +v.slice(1) } : { type: v }; }
   function isWeekly(habit) { return getSchedule(habit).type === "weekly"; }
 
   // Обязателен ли этот день. В режиме «N раз в неделю» обязательных дней нет.
@@ -643,7 +649,7 @@
       if (!name) return;
       const v = schedIn.value;
       habit.name = name;
-      habit.schedule = v[0] === "w" ? { type: "weekly", n: +v.slice(1) } : { type: v };
+      habit.schedule = parseSchedule(v);
       saveHabits();
       render();
     };
@@ -659,7 +665,7 @@
     const name = input.value.trim();
     if (!name) return;
     const v = document.getElementById("scheduleInput").value; // "daily" | "weekdays" | "w3"
-    const schedule = v[0] === "w" ? { type: "weekly", n: +v.slice(1) } : { type: v };
+    const schedule = parseSchedule(v);
     habits.push({ id: Date.now(), name, days: {}, schedule });
     input.value = "";
     saveHabits();
