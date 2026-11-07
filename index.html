@@ -305,6 +305,18 @@
     return d;
   }
 
+  // Сколько отметок в текущей неделе (пн–вс)
+  function weekCount(habit) {
+    const w = weekStart(new Date());
+    let count = 0;
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(w);
+      d.setDate(w.getDate() + i);
+      if (habit.days[dateKey(d)]) count++;
+    }
+    return count;
+  }
+
   // Итог каждой недели (пн–вс) от недели создания до текущей: "ok" | "fail" | "skip".
   // "skip" — неделя ещё идёт или привычка создана посреди неё: штрафа нет.
   function weekResults(habit) {
@@ -410,7 +422,7 @@
       if (scheduleLabel(habit)) {
         const tag = document.createElement("small");
         tag.className = "sched";
-        tag.textContent = " · " + scheduleLabel(habit);
+        tag.textContent = " · " + scheduleLabel(habit) + (isWeekly(habit) ? ` · на этой неделе ${weekCount(habit)}/${getSchedule(habit).n}` : "");
         name.appendChild(tag);
       }
       name.title = "Открыть календарь";
