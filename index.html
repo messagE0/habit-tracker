@@ -55,7 +55,7 @@
     color: var(--text);
     font-size: 15px;
   }
-  .sched { color: var(--muted); font-weight: 400; }
+  .sched { display: block; color: var(--muted); font-weight: 400; }
   button {
     cursor: pointer;
     border: none;
@@ -93,9 +93,8 @@
   }
   .habit-name {
     font-weight: 500;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    min-width: 0;
+    overflow-wrap: anywhere;
   }
   .day {
     width: 36px;
@@ -193,7 +192,12 @@
   footer { margin-top: 32px; text-align: center; color: var(--muted); font-size: 13px; }
 
   @media (max-width: 520px) {
-    .days-header, .habit { grid-template-columns: 1fr repeat(7, 28px) 40px 28px; gap: 4px; }
+    /* На телефоне название занимает всю верхнюю строку, кнопки дней идут под ним */
+    .days-header, .habit { grid-template-columns: repeat(7, minmax(0, 1fr)) 40px 28px; gap: 4px; }
+    .days-header { padding: 0 11px 8px; }
+    .days-header > :first-child { display: none; }
+    .habit-name { grid-column: 1 / -1; margin-bottom: 4px; }
+    .habit .day { justify-self: center; }
     .day { width: 28px; height: 28px; font-size: 14px; }
     .habit { padding: 10px; }
   }
@@ -428,7 +432,7 @@
       if (scheduleLabel(habit)) {
         const tag = document.createElement("small");
         tag.className = "sched";
-        tag.textContent = " · " + scheduleLabel(habit) + (isWeekly(habit) ? ` · на этой неделе ${weekCount(habit)}/${getSchedule(habit).n}` : "");
+        tag.textContent = scheduleLabel(habit) + (isWeekly(habit) ? ` · на этой неделе ${weekCount(habit)}/${getSchedule(habit).n}` : "");
         name.appendChild(tag);
       }
       name.title = "Открыть календарь";
